@@ -1,5 +1,6 @@
 module.exports = {
   "assert": "^1.1.1",
+  "asyncstorage-down": "^4.0.0",
   "browserify-zlib": "~0.1.4",
   "buffer": "^4.9.1",
   "inherits": "^2.0.1",

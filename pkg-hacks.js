@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 // shelljs.exec('force-dedupe-git-modules')
-var proc = require('child_process')
-var fs = require('fs-extra')
-var find = require('findit')
-var path = require('path')
+// const proc = require('child_process')
+const fs = require('fs-extra')
+const find = require('findit')
+const path = require('path')
 // var thisPkg = require('./package.json')
 
 // function loadDeps() {
@@ -25,18 +25,18 @@ var path = require('path')
 // }
 
 module.exports = function hackFiles (hacks) {
-  var finder = find('./node_modules')
+  const finder = find('./node_modules')
   hacks = hacks || hackers.map(h => h.name)
 
   finder.on('file', function (file) {
-    if (!/\.(js|json)$/.test(file) ||
-      /\/tests?\//.test(file)) {
+    if (!(/\.(js|json)$/).test(file) ||
+      (/\/tests?\//).test(file)) {
       return
     }
 
     file = file.replace(/\\/g, path.posix.sep);
 
-    var matchingHackers = hackers.filter(function (hacker) {
+    const matchingHackers = hackers.filter(function (hacker) {
       return hacks.indexOf(hacker.name) !== -1 && hacker.regex.some(function (regex) {
         return regex.test(file)
       })
@@ -50,7 +50,7 @@ module.exports = function hackFiles (hacks) {
     function onread (err, str) {
       if (err) throw err
 
-      var hacked = matchingHackers.reduce(function (hacked, hacker) {
+      const hacked = matchingHackers.reduce(function (hacked, hacker) {
         return hacker.hack(file, hacked || str) || hacked
       }, str)
 
@@ -72,9 +72,9 @@ var hackers = [
     regex: [
       /bluebird\/js\/main\/captured_trace\.js$/
     ],
-    hack: function (file, contents) {
-      var fixed = contents.replace(
-        /fireGlobalEvent \= \(function\(\) \{\s{1}/,
+    hack (file, contents) {
+      const fixed = contents.replace(
+        /fireGlobalEvent = \(function\(\) \{\s{1}/,
         'fireGlobalEvent = (function() {var self = global;'
       )
 
@@ -86,8 +86,8 @@ var hackers = [
     regex: [
       /stream-browserify\/index\.js$/
     ],
-    hack: function (file, contents) {
-      var fixed = contents.replace(
+    hack (file, contents) {
+      const fixed = contents.replace(
         'module.exports = Stream;',
         'module.exports = global.StreamModule = Stream'
       )
@@ -101,8 +101,8 @@ var hackers = [
       /readable-stream\/lib\/_stream_(readable|writable)\.js$/,
       /readable-stream\/readable\.js$/
     ],
-    hack: function (file, contents) {
-      var fixed = contents.replace(
+    hack (file, contents) {
+      const fixed = contents.replace(
         "var Stream = require('stream');",
         "var Stream = global.StreamModule || require('stream')"
       )
@@ -117,8 +117,8 @@ var hackers = [
       /socket\.io\.js/,
       /engine\.io\.js/
     ],
-    hack: function (file, contents) {
-      var fixed = contents.replace("'withCredentials' in new XMLHttpRequest()", 'true')
+    hack (file, contents) {
+      const fixed = contents.replace("'withCredentials' in new XMLHttpRequest()", 'true')
       return contents === fixed ? null : fixed
     }
   },
@@ -127,21 +127,21 @@ var hackers = [
     regex: [
       /debug\/browser\.js/
     ],
-    hack: function (file, contents) {
-      var fixed = contents.replace("('WebkitAppearance' in document.documentElement.style)", 'true')
+    hack (file, contents) {
+      const fixed = contents.replace("('WebkitAppearance' in document.documentElement.style)", 'true')
       return contents === fixed ? null : fixed
     }
   },
   {
     name: 'rn-bundler',
     regex: [
-      /react\-(?:native\/)?packager\/src\/bundler\/bundle\.js/i,
-      /react\-(?:native\/)?packager\/src\/JSTransformer\/worker\/minify\.js/i,
+      /react-(?:native\/)?packager\/src\/bundler\/bundle\.js/i,
+      /react-(?:native\/)?packager\/src\/JSTransformer\/worker\/minify\.js/i,
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (contents.indexOf('mangle:false') !== -1) return
 
-      var fixed = contents.replace(/(\s+)(fromString: true,)/, '$1$2$1mangle:false,')
+      const fixed = contents.replace(/(\s+)(fromString: true,)/, '$1$2$1mangle:false,')
       return contents === fixed ? null : fixed
     }
   },
@@ -150,9 +150,9 @@ var hackers = [
     regex: [
       /pseudomap\/map\.js/
     ],
-    hack: function (file, contents) {
-      var bad = /(module\.exports\s+\=\s+Map[^r]+return[^}]+\})/
-      var match = contents.match(bad)
+    hack (file, contents) {
+      const bad = /(module\.exports\s+=\s+Map[^r]+return[^}]+\})/
+      const match = contents.match(bad)
       if (!match) return
 
       return contents.replace(match[0], 'module.exports=Map}else{') + '}'
@@ -163,10 +163,10 @@ var hackers = [
     regex: [
       /webtorrent\/lib\/fs-storage\.js/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var fixed = contents.replace(/fs\.existsSync\([^\)]*\)/g, 'false')
+      const fixed = contents.replace(/fs\.existsSync\([^)]*\)/g, 'false')
       return contents === fixed ? null : fixed
     }
   },
@@ -175,18 +175,18 @@ var hackers = [
     regex: [
       /\/rusha\/rusha\.js/
     ],
-    hack: function (file, contents) {
-      var fixed = contents.replace(/typeof\ FileReaderSync \!\=\= \'undefined\'/, 'false')
+    hack (file, contents) {
+      const fixed = contents.replace(/typeof FileReaderSync !== 'undefined'/, 'false')
       return contents === fixed ? null : fixed
     }
   },
   {
     name: 'bufferequal',
     regex: [/rudp\/lib\/bufferEqual\.js/],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var hacked = "module.exports = require('buffer-equal')"
+      const hacked = "module.exports = require('buffer-equal')"
       if (contents !== hacked) return hacked
     }
   },
@@ -211,10 +211,10 @@ var hackers = [
     regex: [
       /otr\/lib\/(dsa|otr)\.js/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var fixed = contents
+      let fixed = contents
       fixed = fixed.replace("require('webworker-threads').Worker", "null")
       return contents === fixed ? null : fixed
     }
@@ -224,10 +224,10 @@ var hackers = [
     regex: [
       /levelup\/lib\/util\.js$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var fixed = contents
+      let fixed = contents
       fixed = fixed.replace("require('../package.json').devDependencies.leveldown", "'1.0.0'")
       fixed = fixed.replace("require('leveldown/package').version", "'1.0.0'")
       fixed = fixed.replace("require('leveldown/package.json').version", "'1.0.0'")
@@ -257,10 +257,10 @@ var hackers = [
     regex: [
       /level-jobs\/package\.json$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var pkg
+      let pkg
       try {
         pkg = JSON.parse(contents)
       } catch (err) {
@@ -277,12 +277,12 @@ var hackers = [
   {
     name: 'simple-get',
     regex: [
-      /simple\-get\/package\.json$/
+      /simple-get\/package\.json$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var pkg = JSON.parse(contents)
+      const pkg = JSON.parse(contents)
       if (pkg.browser['unzip-response'] === false) {
         delete pkg.browser['unzip-response']
         return prettify(pkg)
@@ -294,10 +294,10 @@ var hackers = [
     regex: [
       /package\.json$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var pkg
+      let pkg
       try {
         pkg = JSON.parse(contents)
       } catch (err) {
@@ -306,9 +306,9 @@ var hackers = [
       }
 
       if (pkg.browser && typeof pkg.browser === 'object') {
-        var fixed
-        for (var left in pkg.browser) {
-          if (left[0] === '.' && !/\.[a-z]{0,4}$/i.test(left)) {
+        let fixed
+        for (const left in pkg.browser) {
+          if (left[0] === '.' && !(/\.[a-z]{0,4}$/i).test(left)) {
             fixed = true
             pkg.browser[left + '.js'] = pkg.browser[left]
             delete pkg.browser[left]
@@ -322,17 +322,17 @@ var hackers = [
   {
     name: 'webtorrentstuff',
     regex: [
-      /\/torrent\-discovery\/package.json$/,
+      /\/torrent-discovery\/package.json$/,
       /\/webtorrent\/package.json$/,
       /\/load-ip-set\/package.json$/,
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var pkg = JSON.parse(contents)
-      var browser = pkg.browser
-      var save
-      var toDel = [
+      const pkg = JSON.parse(contents)
+      const { browser } = pkg
+      let save
+      const toDel = [
         'bittorrent-dht',
         'bittorrent-dht/client',
         'bittorrent-tracker',
@@ -340,7 +340,7 @@ var hackers = [
         'bittorrent-swarm'
       ]
 
-      for (var p in browser) {
+      for (const p in browser) {
         if (browser[p] === false) {
           toDel.push(p)
         }
@@ -359,12 +359,12 @@ var hackers = [
   {
     name: 'depgraph (rn 0.6)',
     regex: [
-      /react\-packager\/.*\/DependencyGraph\/index\.js/
+      /react-packager\/.*\/DependencyGraph\/index\.js/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var evil = 'var id = sansExtJs(name);'
+      const evil = 'var id = sansExtJs(name);'
       if (contents.indexOf(evil) !== -1) {
         return contents.replace(evil, 'var id = name;')
       }
@@ -375,10 +375,10 @@ var hackers = [
     regex: [
       /ecurve\/lib\/names\.js/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var evil = 'var curves = require(\'./curves\')'
+      const evil = 'var curves = require(\'./curves\')'
       if (contents.indexOf(evil) !== -1) {
         return contents.replace(evil, 'var curves = require(\'./curves.json\')')
       }
@@ -389,10 +389,10 @@ var hackers = [
     regex: [
       /assert\/assert.js$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var evil = 'var util = require(\'util/\');'
+      const evil = 'var util = require(\'util/\');'
       if (contents.indexOf(evil) !== -1) {
         return contents.replace(evil, 'var util = require(\'util\');')
       }
@@ -425,10 +425,10 @@ var hackers = [
     regex: [
       /bytewise\/bytewise\.js$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var fixed = contents
+      let fixed = contents
       fixed = fixed.replace("require('typewise')", "null")
       return contents === fixed ? null : fixed
     }
@@ -436,15 +436,15 @@ var hackers = [
   {
     name: 'unzip-response',
     regex: [
-      /unzip\-response\/index\.js$/
+      /unzip-response\/index\.js$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var hack = ';res.headers = res.headers || {};'
+      const hack = ';res.headers = res.headers || {};'
       if (contents.indexOf(hack) !== -1) return
 
-      var orig = "if (['gzip', 'deflate'].indexOf(res.headers['content-encoding']) !== -1) {"
+      const orig = "if (['gzip', 'deflate'].indexOf(res.headers['content-encoding']) !== -1) {"
       return contents.replace(
         orig,
         hack + orig
@@ -456,7 +456,7 @@ var hackers = [
     regex: [
       /DependencyResolver\/Package\.js/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       // var hack = body(function () {
       /*
         if (!browser[name]) return name
@@ -471,7 +471,7 @@ var hackers = [
       */
       // })
 
-      var fixed = contents
+      let fixed = contents
       // fixed = fixed.replace('return browser[name] || name', hack)
       // fixed = fixed.replace("this._cache.get(this.path, 'haste'", "this._cache.get(this.path, 'package-haste'")
       fixed = fixed.replace("this._cache.get(this.path, 'name'", "this._cache.get(this.path, 'package-name'")
@@ -483,7 +483,7 @@ var hackers = [
     regex: [
       /\/crypto-browserify\/rng\.js$/
     ],
-    hack: function (file, contents) {
+    hack (file, contents) {
       // var hack = body(function () {
 
       //   // react-native-hack
@@ -496,7 +496,8 @@ var hackers = [
 
       // })
 
-      var hack = body(function () {
+      const hack = body(function () {
+
          /*
          // react-native-hack
          try {
@@ -517,32 +518,35 @@ var hackers = [
   {
     name: 'version',
     regex: [/pbkdf2/],
-    hack: function (file, contents) {
+    hack (file, contents) {
       if (isInReactNative(file)) return
 
-      var fixed = contents.replace('process.version', '"' + process.version + '"')
+      const fixed = contents.replace('process.version', '"' + process.version + '"')
 
       return contents === fixed ? null : fixed
     }
   },
 ]
 
-function rewireMain (pkg) {
-  if (typeof pkg.browser === 'string') {
-    var main = pkg.browser || './index.js'
-    pkg.browser = {}
-    pkg.browser[pkg.main] = main
-  } else if (typeof pkg.browser === 'undefined') {
-    pkg.browser = {}
-  }
-}
+// function rewireMain (pkg) {
+//   if (typeof pkg.browser === 'string') {
+//     const main = pkg.browser || './index.js'
+//     pkg.browser = {}
+//     pkg.browser[pkg.main] = main
+//   } else if (typeof pkg.browser === 'undefined') {
+//     pkg.browser = {}
+//   }
+// }
 
-function rethrow (err) {
-  if (err) throw err
-}
+// function rethrow (err) {
+//   if (err) throw err
+// }
 
 function body (fn) {
-  return fn.toString().split(/\n/).slice(2, -2).join('\n').trim()
+  return fn.toString().split(/\n/)
+.slice(2, -2)
+.join('\n')
+.trim()
 }
 
 function prettify (json) {
@@ -550,5 +554,5 @@ function prettify (json) {
 }
 
 function isInReactNative (file) {
-  return /\/react\-native\//.test(file)
+  return (/\/react-native\//).test(file)
 }

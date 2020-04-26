@@ -1,23 +1,20 @@
 #!/usr/bin/env node
 
-var fs = require('fs')
-var path = require('path')
-var semver = require('semver')
-var proc = require('child_process')
-var pick = require('object.pick')
-var extend = require('xtend/mutable')
-var deepEqual = require('deep-equal')
-var find = require('findit')
-var minimist = require('minimist')
-var parallel = require('run-parallel')
-var yarnlock = require('@yarnpkg/lockfile')
-var allShims = require('./shims')
-var coreList = require('./coreList')
-var browser = require('./browser')
-var pkgPath = path.join(process.cwd(), 'package.json')
-var pkg = require(pkgPath)
-var hackFiles = require('./pkg-hacks')
-var argv = minimist(process.argv.slice(2), {
+const fs = require('fs')
+const path = require('path')
+const semver = require('semver')
+const proc = require('child_process')
+// const pick = require('object.pick')
+const extend = require('xtend/mutable')
+const deepEqual = require('deep-equal')
+const find = require('findit')
+const minimist = require('minimist')
+const parallel = require('run-parallel')
+const yarnlock = require('@yarnpkg/lockfile')
+const pkgPath = path.join(process.cwd(), 'package.json')
+const pkg = require(pkgPath)
+const hackFiles = require('./pkg-hacks')
+const argv = minimist(process.argv.slice(2), {
   alias: {
     h: 'help',
     i: 'install',
@@ -26,8 +23,11 @@ var argv = minimist(process.argv.slice(2), {
     y: 'yarn'
   }
 })
+var coreList = require('./coreList')
+var allShims = require('./shims')
+var browser = require('./browser')
 
-var BASE_INSTALL_LINE = argv.yarn ? 'yarn add' : 'npm install --save'
+const BASE_INSTALL_LINE = argv.yarn ? 'yarn add' : 'npm install --save'
 
 if (argv.help) {
   runHelp()
@@ -37,7 +37,22 @@ if (argv.help) {
 }
 
 function run () {
-  var toShim
+  const cfgPath = path.join(process.cwd(), '.rn-nodeify.js')
+  const cfg = fs.existsSync(cfgPath) && require(cfgPath);
+
+  let toShim
+  if(cfg) {
+    if (cfg.install) {
+      coreList = cfg.install
+    }
+    if (cfg.shims) {
+      allShims = cfg.shims
+    }
+    if (cfg.browser) {
+      browser = cfg.browser
+    }
+  }
+
   if (argv.install) {
     if (argv.install === true) {
       toShim = coreList
@@ -51,36 +66,33 @@ function run () {
     toShim = coreList
   }
 
-  if (toShim.indexOf('stream') !== -1) {
-    toShim.push(
-      '_stream_transform',
-      '_stream_readable',
-      '_stream_writable',
-      '_stream_duplex',
-      '_stream_passthrough',
-      'readable-stream'
-    )
+  for (const name in toShim) {
+    if (Array.isArray(toShim[name])) {
+      toShim[name].forEach(function (m) {
+        toShim[m] = true
+      })
+    }
   }
-
-  if (toShim.indexOf('crypto') !== -1) {
-    toShim.push('react-native-randombytes')
-  }
+  const moduleNames = Object.keys(toShim)
+  .filter(function (m) {
+    return toShim[m]
+  })
 
   if (argv.install) {
     installShims({
-      modules: toShim,
+      modules: moduleNames,
       overwrite: argv.overwrite
     }, function (err) {
       if (err) throw err
 
-      runHacks()
+      runHacks(moduleNames)
     })
   } else {
-    runHacks()
+    runHacks(moduleNames)
   }
 
-  function runHacks () {
-    hackPackageJSONs(toShim, function (err) {
+  function runHacks (modules) {
+    hackPackageJSONs(modules, function (err) {
       if (err) throw err
 
       if (argv.hack) {
@@ -104,12 +116,12 @@ function installShims ({ modules, overwrite }, done) {
     })
   }
 
-  var shimPkgNames = modules
+  const shimPkgNames = modules
     .map(function (m) {
       return browser[m] || m
     })
     .filter(function (shim) {
-      return !/^_/.test(shim) && (shim[0] === '@' || shim.indexOf('/') === -1)
+      return !(/^_/).test(shim) && (shim[0] === '@' || shim.indexOf('/') === -1)
     })
 
   if (!shimPkgNames.length) {
@@ -117,18 +129,18 @@ function installShims ({ modules, overwrite }, done) {
   }
 
   // Load the exact package versions from the lockfile
-  var lockfile
+  let lockfile
   if (argv.yarn) {
     if (fs.existsSync('yarn.lock')) {
-      let result = yarnlock.parse(fs.readFileSync('yarn.lock', 'utf8'))
+      const result = yarnlock.parse(fs.readFileSync('yarn.lock', 'utf8'))
       if (result.type == 'success') {
         lockfile = result.object
       }
     }
   } else {
-    var lockpath = path.join(process.cwd(), 'package-lock.json')
+    const lockpath = path.join(process.cwd(), 'package-lock.json')
     if (fs.existsSync(lockpath)) {
-      let result = require(lockpath)
+      const result = require(lockpath)
       if (result && result.dependencies) {
         lockfile = result.dependencies
       }
@@ -136,12 +148,12 @@ function installShims ({ modules, overwrite }, done) {
   }
 
   parallel(shimPkgNames.map(function (name) {
-    var modPath = path.resolve('./node_modules/' + name)
+    const modPath = path.resolve('./node_modules/' + name)
     return function (cb) {
       fs.exists(modPath, function (exists) {
         if (!exists) return cb()
 
-        var install = true
+        let install = true
         if (lockfile) {
           // Use the lockfile to resolve installed version of package
           if (argv.yarn) {
@@ -149,8 +161,8 @@ function installShims ({ modules, overwrite }, done) {
               install = false
             }
           } else {
-            var lockfileVer = (lockfile[name] || {}).version
-            var targetVer = allShims[name]
+            let lockfileVer = (lockfile[name] || {}).version
+            const targetVer = allShims[name]
             if (semver.valid(lockfileVer)) {
               if (semver.satisfies(lockfileVer, targetVer)) {
                 install = false
@@ -168,15 +180,15 @@ function installShims ({ modules, overwrite }, done) {
           }
         } else {
           // Fallback to using the version from the dependency's package.json
-          var pkgJson = require(modPath + '/package.json')
-          if (/^git\:\/\//.test(pkgJson._resolved)) {
-            var hash = allShims[name].split('#')[1]
+          const pkgJson = require(modPath + '/package.json')
+          if ((/^git:\/\//).test(pkgJson._resolved)) {
+            const hash = allShims[name].split('#')[1]
             if (hash && pkgJson.gitHead.indexOf(hash) === 0) {
               install = false
             }
           } else {
-            var existingVerNpm5 = (/\-([^\-]+)\.tgz/.exec(pkgJson.version) || [null, null])[1]
-            var existingVer = existingVerNpm5 || pkgJson.version
+            const existingVerNpm5 = ((/-([^-]+)\.tgz/).exec(pkgJson.version) || [null, null])[1]
+            const existingVer = existingVerNpm5 || pkgJson.version
             if (semver.satisfies(existingVer, allShims[name])) {
               install = false
             }
@@ -198,9 +210,9 @@ function installShims ({ modules, overwrite }, done) {
       return finish()
     }
 
-    var installLine = BASE_INSTALL_LINE + ' '
+    let installLine = BASE_INSTALL_LINE + ' '
     shimPkgNames.forEach(function (name) {
-      let version = allShims[name]
+      const version = allShims[name]
       if (!version) return
       if (version.indexOf('/') === -1) {
         if (argv.yarn) {
@@ -212,7 +224,7 @@ function installShims ({ modules, overwrite }, done) {
       } else {
         // github url
         log('installing from github', name)
-        installLine += version.match(/([^\/]+\/[^\/]+)$/)[1]
+        installLine += version.match(/([^/]+\/[^/]+)$/)[1]
       }
 
       pkg.dependencies[name] = version
@@ -260,7 +272,7 @@ function copyShim (cb) {
 function hackPackageJSONs (modules, done) {
   fixPackageJSON(modules, './package.json', true)
 
-  var finder = find('./node_modules')
+  const finder = find('./node_modules')
 
   finder.on('file', function (file) {
     if (path.basename(file) !== 'package.json') return
@@ -274,10 +286,10 @@ function hackPackageJSONs (modules, done) {
 function fixPackageJSON (modules, file, overwrite) {
   if (file.split(path.sep).indexOf('react-native') >= 0) return
 
-  var contents = fs.readFileSync(path.resolve(file), { encoding: 'utf8' })
+  const contents = fs.readFileSync(path.resolve(file), { encoding: 'utf8' })
 
   // var browser = pick(baseBrowser, modules)
-  var pkgJson
+  let pkgJson
   try {
     pkgJson = JSON.parse(contents)
   } catch (err) {
@@ -292,25 +304,23 @@ function fixPackageJSON (modules, file, overwrite) {
 
   // if (pkgJson.name === 'readable-stream') debugger
 
-  var orgBrowser = pkgJson['react-native'] || pkgJson.browser || pkgJson.browserify || {}
+  let orgBrowser = pkgJson['react-native'] || pkgJson.browser || pkgJson.browserify || {}
   if (typeof orgBrowser === 'string') {
     orgBrowser = {}
     orgBrowser[pkgJson.main || 'index.js'] = pkgJson['react-native'] || pkgJson.browser || pkgJson.browserify
   }
 
-  var depBrowser = extend({}, orgBrowser)
-  for (var p in browser) {
+  const depBrowser = extend({}, orgBrowser)
+  for (const p in browser) {
     if (modules.indexOf(p) === -1) continue
 
     if (!(p in orgBrowser)) {
       depBrowser[p] = browser[p]
-    } else {
-      if (!overwrite && orgBrowser[p] !== browser[p]) {
+    } else if (!overwrite && orgBrowser[p] !== browser[p]) {
         log('not overwriting mapping', p, orgBrowser[p])
       } else {
         depBrowser[p] = browser[p]
       }
-    }
   }
 
   modules.forEach(function (p) {
@@ -337,7 +347,10 @@ function fixPackageJSON (modules, file, overwrite) {
   }
 
   if (!deepEqual(orgBrowser, depBrowser)) {
-    pkgJson.browser = pkgJson['react-native'] = depBrowser
+    pkgJson['react-native'] = depBrowser
+    if (pkgJson.browser || pkgJson.browserify) {
+      pkgJson.browser = depBrowser
+    }
     delete pkgJson.browserify
     fs.writeFileSync(file, prettify(pkgJson))
   }
@@ -345,6 +358,7 @@ function fixPackageJSON (modules, file, overwrite) {
 
 function runHelp () {
   log(function () {
+
     /*
     Usage:
         rn-nodeify --install dns,stream,http,https
@@ -360,7 +374,9 @@ function runHelp () {
 
     Please report bugs!  https://github.com/mvayngrib/rn-nodeify/issues
     */
-  }.toString().split(/\n/).slice(2, -2).join('\n'))
+  }.toString().split(/\n/)
+.slice(2, -2)
+.join('\n'))
   process.exit(0)
 }
 
